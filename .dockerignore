@@ -8,10 +8,9 @@ tests/
 __pycache__/
 *.pyc
 .pytest_cache/
-README.md
+README*.md
 LICENSE
 *.bat
 *.sh
 *.command
-README.de.md
 .gitattributes
