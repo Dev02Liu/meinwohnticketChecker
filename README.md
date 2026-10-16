@@ -28,8 +28,8 @@ Setup happens in a small web interface; no config files needed.
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/MeinWohnTicketChecker.git
-cd MeinWohnTicketChecker
+git clone https://github.com/Dev02Liu/meinwohnticketChecker.git
+cd meinwohnticketChecker
 docker compose up -d --build
 ```
 
