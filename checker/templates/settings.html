@@ -39,11 +39,15 @@
   <div class="card">
     <h2>Apartment search to watch</h2>
     <p class="muted small">
-      Open the <a href="https://www.meinwohnticket.wien/wohnungen" target="_blank" rel="noopener">Wohnungssuche</a>,
-      set your filters (SMART, rooms, districts, max. rent, …) and paste the URL from the address bar.
+      The same filters as on the website. Leave everything empty to watch all apartments that are offered to you.
     </p>
-    <label for="search_url">Search URL</label>
-    <textarea id="search_url" name="search_url" spellcheck="false"></textarea>
+    <div id="filter-picker"></div>
+    <p class="small" style="margin-top:14px"><span class="muted">Watching:</span> <span id="filter-summary">all apartments offered to you</span></p>
+    <details class="small">
+      <summary>Advanced: search URL</summary>
+      <p class="muted">The filters above are stored as this URL. You can also paste a URL copied from the website's address bar; the filters update accordingly.</p>
+      <textarea id="search_url" name="search_url" spellcheck="false"></textarea>
+    </details>
     <div class="actions" style="margin-top:12px">
       <button type="button" id="btn-search">Test search</button>
     </div>
@@ -120,6 +124,8 @@
 {% block scripts %}
 <script>
   const current = {{ settings | tojson }};
+  const catalog = {{ filter_catalog | tojson }};
+  const BASE_SEARCH_URL = 'https://www.meinwohnticket.wien/wohnungen';
   const form = document.getElementById('settings-form');
   const textFields = ['username', 'search_url', 'ntfy_topic', 'ntfy_server', 'telegram_chat_id', 'interval_minutes', 'failure_threshold'];
   const boolFields = ['notify_on_start', 'notify_on_removed'];
@@ -127,6 +133,161 @@
   textFields.forEach(k => { if (current[k] !== null && current[k] !== undefined) form[k].value = current[k]; });
   boolFields.forEach(k => { form[k].checked = !!current[k]; });
 
+  // ---- filter picker <-> search URL -------------------------------------------------
+  const picker = document.getElementById('filter-picker');
+  const urlField = form.search_url;
+  const summaryEl = document.getElementById('filter-summary');
+
+  function buildPicker() {
+    catalog.forEach(entry => {
+      const box = document.createElement('div');
+      box.className = 'filter';
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = entry.label;
+      if (entry.help) {
+        const hint = document.createElement('span');
+        hint.className = 'hint';
+        hint.textContent = ' – ' + entry.help;
+        title.appendChild(hint);
+      }
+      box.appendChild(title);
+      if (entry.type === 'multi') {
+        const chips = document.createElement('div');
+        chips.className = 'chips';
+        entry.options.forEach(opt => {
+          const label = document.createElement('label');
+          label.className = 'chip' + (entry.layout === 'compact' ? ' compact' : '');
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.value = opt.value;
+          input.dataset.param = entry.param;
+          input.addEventListener('change', syncUrlFromPicker);
+          const span = document.createElement('span');
+          span.textContent = opt.label;
+          label.appendChild(input);
+          label.appendChild(span);
+          chips.appendChild(label);
+        });
+        box.appendChild(chips);
+      } else {
+        const row = document.createElement('div');
+        row.className = 'range';
+        const makeInput = bound => {
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.min = entry.min;
+          input.step = entry.step;
+          if (!(bound === 'max' && entry.unbounded)) input.max = entry.max;
+          input.placeholder = bound === 'min' ? 'von' : (entry.unbounded ? 'bis (leer = offen)' : 'bis');
+          input.dataset.param = entry.param;
+          input.dataset.bound = bound;
+          input.setAttribute('aria-label', entry.label + ' ' + (bound === 'min' ? 'von' : 'bis'));
+          input.addEventListener('input', syncUrlFromPicker);
+          return input;
+        };
+        row.appendChild(makeInput('min'));
+        row.appendChild(document.createTextNode('–'));
+        row.appendChild(makeInput('max'));
+        if (entry.unit) {
+          const unit = document.createElement('span');
+          unit.className = 'unit';
+          unit.textContent = entry.unit;
+          row.appendChild(unit);
+        }
+        box.appendChild(row);
+      }
+      picker.appendChild(box);
+    });
+  }
+
+  function rangeInputs(param) {
+    return {
+      min: picker.querySelector(`input[data-param="${param}"][data-bound="min"]`),
+      max: picker.querySelector(`input[data-param="${param}"][data-bound="max"]`),
+    };
+  }
+
+  function pickerState() {
+    const state = {};
+    catalog.forEach(entry => {
+      if (entry.type === 'multi') {
+        const values = [...picker.querySelectorAll(`input[type=checkbox][data-param="${entry.param}"]:checked`)].map(i => i.value);
+        if (values.length) state[entry.param] = values;
+      } else {
+        const inputs = rangeInputs(entry.param);
+        const lo = inputs.min.value.trim(), hi = inputs.max.value.trim();
+        if (lo || hi) state[entry.param] = {min: lo, max: hi};
+      }
+    });
+    return state;
+  }
+
+  function syncUrlFromPicker() {
+    const extra = [];
+    try {
+      new URL(urlField.value.trim() || BASE_SEARCH_URL).searchParams.forEach((v, k) => {
+        if (!catalog.some(e => e.param === k)) extra.push([k, v]);
+      });
+    } catch (e) { /* ignore unparsable text, it gets replaced */ }
+    const state = pickerState();
+    const params = new URLSearchParams();
+    catalog.forEach(entry => {
+      const value = state[entry.param];
+      if (value === undefined) return;
+      params.append(entry.param, Array.isArray(value) ? value.join('~') : `${value.min}-${value.max}`);
+    });
+    extra.forEach(([k, v]) => params.append(k, v));
+    const query = params.toString().replace(/%7E/gi, '~');
+    urlField.value = BASE_SEARCH_URL + (query ? '?' + query : '');
+    updateSummary();
+  }
+
+  function syncPickerFromUrl() {
+    let url;
+    try { url = new URL(urlField.value.trim()); } catch (e) { return; }
+    catalog.forEach(entry => {
+      const raw = url.searchParams.get(entry.param);
+      if (entry.type === 'multi') {
+        const values = raw ? raw.split('~') : [];
+        picker.querySelectorAll(`input[type=checkbox][data-param="${entry.param}"]`).forEach(i => { i.checked = values.includes(i.value); });
+      } else {
+        let lo = '', hi = '';
+        if (raw) {
+          const idx = raw.indexOf('-');
+          if (idx >= 0) { lo = raw.slice(0, idx); hi = raw.slice(idx + 1); } else { lo = hi = raw; }
+        }
+        const inputs = rangeInputs(entry.param);
+        inputs.min.value = lo;
+        inputs.max.value = hi;
+      }
+    });
+    updateSummary();
+  }
+
+  function updateSummary() {
+    const state = pickerState();
+    const parts = [];
+    catalog.forEach(entry => {
+      const value = state[entry.param];
+      if (value === undefined) return;
+      if (entry.type === 'multi') {
+        const labels = value.map(v => (entry.options.find(o => o.value === v) || {label: v}).label);
+        parts.push(entry.param === 'bezirke' ? labels.join(', ') + ' Bezirk' : labels.join(', '));
+      } else {
+        const unit = entry.unit ? ' ' + entry.unit : '';
+        const text = value.min && value.max ? `${value.min}–${value.max}${unit}` : value.min ? `ab ${value.min}${unit}` : `bis ${value.max}${unit}`;
+        parts.push(entry.unit === '€' ? `${entry.label} ${text}` : `${text} ${entry.label}`);
+      }
+    });
+    summaryEl.textContent = parts.length ? parts.join(' · ') : 'all apartments offered to you';
+  }
+
+  buildPicker();
+  syncPickerFromUrl();
+  urlField.addEventListener('input', syncPickerFromUrl);
+
+  // ---- form values & actions ----------------------------------------------------------
   function values() {
     const v = {};
     textFields.forEach(k => v[k] = form[k].value.trim());

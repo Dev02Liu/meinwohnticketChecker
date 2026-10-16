@@ -11,7 +11,8 @@ Setup happens in a small web interface; no config files needed.
 
 ## Features
 
-- Web UI with a guided setup: test your login, preview your search, send a test notification
+- Web UI with a guided setup: test your login, pick your filters like on the website and preview
+  the matching apartments, send a test notification
 - Dashboard with the currently matching apartments, recent checks and a "check now" button
 - Uses the same API as the website (no screen scraping), configured by pasting your search URL
 - Automatic login and re-login with a headless browser; only the session cookie is kept
@@ -37,8 +38,10 @@ Then open **http://localhost:8080** and follow the four steps. (Port taken? Crea
 file next to `docker-compose.yml` containing `HOST_PORT=8585` and run the command again.)
 
 1. **Stadt Wien Konto** – enter your username and password and click *Test login*.
-2. **Search** – on meinwohnticket.wien set your filters (SMART, rooms, districts, max. rent, …),
-   copy the URL from the address bar, paste it and click *Test search* to see what currently matches.
+2. **Search** – pick the same filters as on the website (apartment type, districts, rooms, size,
+   monthly and one-time costs, SMART/Superförderung, equipment, outdoor space) and click
+   *Test search* to see what currently matches. You can also paste a search URL copied from the
+   website's address bar under *Advanced*.
 3. **Notifications** – for ntfy: install the app, click *Generate* for a random topic, subscribe to
    that topic in the app, then *Send test notification*. Telegram and Discord work too.
 4. **Behaviour** – how often to check (10 minutes is a good default), then *Save and start watching*.
@@ -107,9 +110,12 @@ docker compose run --rm checker --status             # recent runs
 | – | `LOG_LEVEL` | `INFO` | `DEBUG` shows every request. |
 | – | `DATA_DIR` | `/data` | Database, cookies, config.json. |
 
-Supported URL filters: `anzahlRaeume`, `foerderungen`, `bezirke`, `wohnungsarten`,
-`ausstattung`, `freiflaechen`, `nutzung`, `monatlicheKosten`, `einmaligeKosten`, `flaeche`
-and `sortierung`, exactly as the website writes them.
+The filters are stored as the website's own search URL. Supported parameters: `wohnungsarten`
+(Art der Wohnung), `bezirke` (1–23), `anzahlRaeume` (Wohnräume 1–7), `flaeche` (m²),
+`monatlicheKosten` (€/month), `einmaligeKosten` (€ one-time), `foerderungen`
+(`SMART_ZUSICHERUNG`, `SUPER_FOERDERUNG`), `nutzung`, `ausstattung`, `freiflaechen` and
+`sortierung`; lists are joined with `~`, ranges written as `min-max` (either side optional).
+The full catalog with labels lives in `checker/filters.py`.
 
 ## Troubleshooting
 
@@ -124,7 +130,8 @@ and `sortierung`, exactly as the website writes them.
 - **"GraphQL error … PublicWohnungSucheNotAllowed"**: your Wohn-Ticket is not (or no longer) valid for
   the search; check your account on the website.
 - **The site changed**: the GraphQL query lives in `checker/api.py`, the URL-to-filter mapping in
-  `checker/config.py`, the login selectors in `checker/auth.py`. Pull requests welcome.
+  `checker/config.py`, the filter catalog (values and labels) in `checker/filters.py`, the login
+  selectors in `checker/auth.py`. Pull requests welcome.
 
 ## How it works
 

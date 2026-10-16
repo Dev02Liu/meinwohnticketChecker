@@ -16,6 +16,7 @@ from .api import MwtClient
 from .checker import Checker
 from .config import Settings
 from .db import Database
+from .filters import describe_search
 from .notify import Notifier, format_listing
 
 log = logging.getLogger(__name__)
@@ -161,6 +162,7 @@ class Service:
             "configured": settings.is_configured,
             "username": settings.username,
             "search_url": settings.search_url,
+            "search_summary": describe_search(settings.search_url),
             "interval_minutes": settings.interval_minutes,
             "channels": settings.channels,
             "checking": self.checking,

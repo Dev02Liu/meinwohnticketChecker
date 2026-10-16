@@ -18,7 +18,7 @@
     <h2>Watching</h2>
     <dl>
       <dt>Account</dt><dd>{{ status.username or "session cookie" }}</dd>
-      <dt>Search</dt><dd><a href="{{ status.search_url }}" target="_blank" rel="noopener">open on meinwohnticket.wien</a></dd>
+      <dt>Search</dt><dd>{{ status.search_summary | join(" · ") or "all apartments offered to you" }} · <a href="{{ status.search_url }}" target="_blank" rel="noopener">open</a></dd>
       <dt>Interval</dt><dd>every {{ status.interval_minutes }} min</dd>
       <dt>Channels</dt><dd>{{ status.channels | join(", ") or "none" }}</dd>
     </dl>

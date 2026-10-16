@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import __version__
 from .config import PERSISTED_FIELDS, SECRET_FIELDS, Settings, is_search_url
+from .filters import FILTER_CATALOG, describe_search
 from .service import Service
 
 log = logging.getLogger(__name__)
@@ -90,6 +91,7 @@ def create_app(service: Service) -> FastAPI:
             "settings.html",
             settings=service.settings.public_dict(),
             setup=not service.settings.is_configured,
+            filter_catalog=FILTER_CATALOG,
         )
 
     @app.get("/healthz")
@@ -139,7 +141,12 @@ def create_app(service: Service) -> FastAPI:
         except Exception as exc:  # noqa: BLE001
             log.warning("Search test failed: %s", exc)
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
-        return {"ok": True, "total": total, "listings": [Service._listing_view(hit) for hit in hits[:10]]}
+        return {
+            "ok": True,
+            "total": total,
+            "summary": describe_search(url),
+            "listings": [Service._listing_view(hit) for hit in hits[:10]],
+        }
 
     @app.post("/api/test/notification", dependencies=api_deps)
     def api_test_notification(payload: dict[str, Any] = Body(...)) -> Any:
