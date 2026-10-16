@@ -10,3 +10,8 @@ __pycache__/
 .pytest_cache/
 README.md
 LICENSE
+*.bat
+*.sh
+*.command
+README.de.md
+.gitattributes

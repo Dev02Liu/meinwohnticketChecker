@@ -1,66 +1,66 @@
 {% extends "base.html" %}
-{% block title %}Dashboard · Mein Wohn-Ticket Checker{% endblock %}
+{% block title %}{{ t('dash_title') }} · Mein Wohn-Ticket Checker{% endblock %}
 {% block content %}
-<h1>Dashboard</h1>
+<h1>{{ t('dash_title') }}</h1>
 
 {% if not status.channels %}
-<div class="alert warn">No notification channel is configured. <a href="/settings">Add one in the settings</a>, otherwise new apartments are only logged.</div>
+<div class="alert warn">{{ t('alert_no_channel_1') }} <a href="/settings">{{ t('alert_no_channel_link') }}</a>{{ t('alert_no_channel_2') }}</div>
 {% endif %}
 {% if status.consecutive_failures >= 1 %}
-<div class="alert err">The last {{ status.consecutive_failures }} check(s) failed{% if status.last_result and status.last_result.error %}: {{ status.last_result.error }}{% endif %}</div>
+<div class="alert err">{{ t('alert_failures', n=status.consecutive_failures) }}{% if status.last_result and status.last_result.error %}: {{ status.last_result.error }}{% endif %}</div>
 {% endif %}
 {% if not status.initialized %}
-<div class="alert info">The first check has not run yet. It stores what is currently listed and sends one confirmation message; from then on every new listing triggers a notification.</div>
+<div class="alert info">{{ t('alert_first_check') }}</div>
 {% endif %}
 
 <div class="grid">
   <div class="card">
-    <h2>Watching</h2>
+    <h2>{{ t('watching') }}</h2>
     <dl>
-      <dt>Account</dt><dd>{{ status.username or "session cookie" }}</dd>
-      <dt>Search</dt><dd>{{ status.search_summary | join(" · ") or "all apartments offered to you" }} · <a href="{{ status.search_url }}" target="_blank" rel="noopener">open</a></dd>
-      <dt>Interval</dt><dd>every {{ status.interval_minutes }} min</dd>
-      <dt>Channels</dt><dd>{{ status.channels | join(", ") or "none" }}</dd>
+      <dt>{{ t('account') }}</dt><dd>{{ status.username or t('session_cookie') }}</dd>
+      <dt>{{ t('search') }}</dt><dd>{{ status.search_summary | join(" · ") or t('all_apartments') }} · <a href="{{ status.search_url }}" target="_blank" rel="noopener">{{ t('open') }}</a></dd>
+      <dt>{{ t('interval') }}</dt><dd>{{ t('every_minutes', n=status.interval_minutes) }}</dd>
+      <dt>{{ t('channels') }}</dt><dd>{{ status.channels | join(", ") or t('none') }}</dd>
     </dl>
   </div>
   <div class="card">
-    <h2>Status</h2>
+    <h2>{{ t('status') }}</h2>
     <dl>
-      <dt>Now</dt><dd id="checking">{% if status.checking %}<span class="badge warn">checking…</span>{% else %}<span class="badge ok">idle</span>{% endif %}</dd>
-      <dt>Last check</dt>
+      <dt>{{ t('now') }}</dt><dd id="checking">{% if status.checking %}<span class="badge warn">{{ t('checking') }}</span>{% else %}<span class="badge ok">{{ t('idle') }}</span>{% endif %}</dd>
+      <dt>{{ t('last_check') }}</dt>
       <dd id="last-check">
         {% if status.last_result %}
           {% if status.last_result.status == "ok" %}
-            <span class="badge ok">ok</span> {{ status.last_result.total }} matching, {{ status.last_result.new }} new
+            <span class="badge ok">{{ t('ok') }}</span> {{ t('matching_new', total=status.last_result.total, new=status.last_result.new) }}
           {% else %}
-            <span class="badge err">error</span>
+            <span class="badge err">{{ t('error') }}</span>
           {% endif %}
           <span class="muted small" data-time="{{ status.last_result.finished_at }}"></span>
         {% elif status.runs %}
-          <span class="badge {{ 'ok' if status.runs[0].status == 'ok' else 'err' }}">{{ status.runs[0].status }}</span>
+          <span class="badge {{ 'ok' if status.runs[0].status == 'ok' else 'err' }}">{{ t('ok') if status.runs[0].status == 'ok' else t('error') }}</span>
           <span class="muted small" data-time="{{ status.runs[0].finished_at }}"></span>
         {% else %}
-          <span class="muted">never</span>
+          <span class="muted">{{ t('never') }}</span>
         {% endif %}
       </dd>
-      <dt>Next check</dt><dd id="next-check" data-time="{{ status.next_check_at or '' }}">{{ "soon" if status.next_check_at else "–" }}</dd>
-      <dt>Stored</dt><dd>{{ status.listing_count }} active listing(s)</dd>
+      <dt>{{ t('next_check') }}</dt><dd id="next-check" data-time="{{ status.next_check_at or '' }}">{{ t('soon') if status.next_check_at else "–" }}</dd>
+      <dt>{{ t('stored') }}</dt><dd>{{ t('active_listings', n=status.listing_count) }}</dd>
     </dl>
   </div>
 </div>
 
 <div class="card">
-  <h2>Actions</h2>
+  <h2>{{ t('actions') }}</h2>
   <div class="actions">
-    <button class="primary" id="btn-check">Check now</button>
-    <button id="btn-notify">Send test notification</button>
-    <a class="btn" href="/settings">Settings</a>
+    <button class="primary" id="btn-check">{{ t('check_now') }}</button>
+    <button id="btn-notify">{{ t('send_test_notification') }}</button>
+    <a class="btn" href="/settings">{{ t('nav_settings') }}</a>
   </div>
   <div class="result" id="action-result"></div>
 </div>
 
 <div class="card">
-  <h2>Currently matching ({{ status.listing_count }})</h2>
+  <h2>{{ t('currently_matching', n=status.listing_count) }}</h2>
   {% if status.listings %}
   <div class="grid">
     {% for item in status.listings %}
@@ -72,20 +72,20 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="muted">No apartment matches your filters right now. You will be notified when one appears.</p>
+  <p class="muted">{{ t('no_match') }}</p>
   {% endif %}
 </div>
 
 <div class="card">
-  <h2>Recent checks</h2>
+  <h2>{{ t('recent_checks') }}</h2>
   {% if status.runs %}
   <table>
-    <thead><tr><th>Time</th><th>Result</th><th>Matching</th><th>New</th><th>Gone</th><th>Details</th></tr></thead>
+    <thead><tr><th>{{ t('col_time') }}</th><th>{{ t('col_result') }}</th><th>{{ t('col_matching') }}</th><th>{{ t('col_new') }}</th><th>{{ t('col_gone') }}</th><th>{{ t('col_details') }}</th></tr></thead>
     <tbody>
     {% for run in status.runs %}
       <tr>
         <td><span data-time="{{ run.finished_at }}">{{ run.finished_at }}</span></td>
-        <td><span class="badge {{ 'ok' if run.status == 'ok' else 'err' }}">{{ run.status }}</span></td>
+        <td><span class="badge {{ 'ok' if run.status == 'ok' else 'err' }}">{{ t('ok') if run.status == 'ok' else t('error') }}</span></td>
         <td>{{ run.total_hits if run.total_hits is not none else "–" }}</td>
         <td>{{ run.new_count }}</td>
         <td>{{ run.removed_count }}</td>
@@ -95,14 +95,14 @@
     </tbody>
   </table>
   {% else %}
-  <p class="muted">No checks yet.</p>
+  <p class="muted">{{ t('no_checks') }}</p>
   {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-  const fmt = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'});
+  const dateFmt = new Intl.DateTimeFormat({{ ('de-AT' if lang == 'de' else 'en-GB') | tojson }}, {dateStyle: 'medium', timeStyle: 'short'});
   function renderTimes() {
     document.querySelectorAll('[data-time]').forEach(el => {
       const iso = el.getAttribute('data-time');
@@ -111,9 +111,9 @@
       if (isNaN(d)) return;
       if (el.id === 'next-check') {
         const sec = Math.round((d - Date.now()) / 1000);
-        el.textContent = sec <= 0 ? 'any moment' : (sec < 90 ? `in ${sec} s` : `in ${Math.round(sec / 60)} min (${fmt.format(d)})`);
+        el.textContent = sec <= 0 ? I18N.js_any_moment : (sec < 90 ? fmt('js_in_seconds', {n: sec}) : fmt('js_in_minutes', {n: Math.round(sec / 60), time: dateFmt.format(d)}));
       } else {
-        el.textContent = fmt.format(d);
+        el.textContent = dateFmt.format(d);
       }
     });
   }
@@ -125,7 +125,7 @@
     try {
       const res = await fetch('/api/status', {headers: {'X-Requested-With': 'fetch'}});
       const s = await res.json();
-      document.getElementById('checking').innerHTML = s.checking ? '<span class="badge warn">checking…</span>' : '<span class="badge ok">idle</span>';
+      document.getElementById('checking').innerHTML = s.checking ? '<span class="badge warn">' + I18N.checking + '</span>' : '<span class="badge ok">' + I18N.idle + '</span>';
       document.getElementById('next-check').setAttribute('data-time', s.next_check_at || '');
       const finished = s.last_result ? s.last_result.finished_at : (s.runs.length ? s.runs[0].finished_at : '');
       if (finished && finished !== lastFinished) location.reload();
@@ -136,11 +136,11 @@
   const out = document.getElementById('action-result');
   document.getElementById('btn-check').addEventListener('click', e => busy(e.target, async () => {
     const r = await api('/api/check');
-    setResult(out, r.ok, r.ok ? 'Check started – the page refreshes when it is done.' : r.error);
+    setResult(out, r.ok, r.ok ? I18N.js_check_started : r.error);
   }));
   document.getElementById('btn-notify').addEventListener('click', e => busy(e.target, async () => {
     const r = await api('/api/test/notification');
-    setResult(out, r.ok, r.ok ? 'Test notification sent via ' + r.channels.join(', ') + '.' : r.error);
+    setResult(out, r.ok, r.ok ? fmt('js_test_sent', {channels: r.channels.join(', ')}) : r.error);
   }));
 </script>
 {% endblock %}

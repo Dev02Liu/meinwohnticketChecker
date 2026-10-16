@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -24,8 +24,12 @@
     header .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
     .brand { font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 8px; }
     .brand span.logo { display: inline-block; width: 12px; height: 20px; background: var(--accent); border-radius: 2px; }
-    nav a { text-decoration: none; color: var(--muted); margin-left: 16px; }
+    nav { display: flex; align-items: center; gap: 16px; }
+    nav a { text-decoration: none; color: var(--muted); }
     nav a.active, nav a:hover { color: var(--text); }
+    .lang { font-size: 13px; color: var(--muted); border-left: 1px solid var(--border); padding-left: 16px; }
+    .lang a { margin: 0 2px; }
+    .lang a.active { font-weight: 700; color: var(--text); }
     main { padding: 24px 0 48px; }
     h1 { font-size: 22px; margin: 0 0 16px; }
     h2 { font-size: 16px; margin: 0 0 12px; }
@@ -79,7 +83,7 @@
     .chip input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
     .chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
     .range { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
-    .range input { width: 110px; }
+    .range input { width: 140px; }
     .range .unit { color: var(--muted); }
     details summary { cursor: pointer; color: var(--muted); }
     .listing { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
@@ -96,16 +100,25 @@
   <div class="wrap">
     <a class="brand" href="/"><span class="logo"></span> Mein Wohn-Ticket Checker</a>
     <nav>
-      {% if configured %}<a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>{% endif %}
-      <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">Settings</a>
+      {% if configured %}<a href="/" class="{% if request.url.path == '/' %}active{% endif %}">{{ t('nav_dashboard') }}</a>{% endif %}
+      <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">{{ t('nav_settings') }}</a>
+      <span class="lang" aria-label="{{ t('language') }}">
+        {% for code, name in languages.items() %}<a href="/lang/{{ code }}" class="{% if code == lang %}active{% endif %}" lang="{{ code }}" title="{{ name }}">{{ code | upper }}</a>{% if not loop.last %}·{% endif %}{% endfor %}
+      </span>
     </nav>
   </div>
 </header>
 <main><div class="wrap">
 {% block content %}{% endblock %}
 </div></main>
-<footer>v{{ version }} · not affiliated with Wohnberatung Wien or the City of Vienna</footer>
+<footer>v{{ version }} · {{ t('footer_disclaimer') }}</footer>
 <script>
+  const I18N = {{ i18n | tojson }};
+  function fmt(key, vars) {
+    let text = I18N[key] || key;
+    Object.entries(vars || {}).forEach(([k, v]) => { text = text.split('{' + k + '}').join(v); });
+    return text;
+  }
   async function api(path, body) {
     const res = await fetch(path, {
       method: 'POST',
@@ -123,7 +136,7 @@
   }
   async function busy(button, fn) {
     const label = button.textContent;
-    button.disabled = true; button.textContent = 'Working…';
+    button.disabled = true; button.textContent = I18N.working;
     try { await fn(); } finally { button.disabled = false; button.textContent = label; }
   }
 </script>

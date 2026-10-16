@@ -29,6 +29,7 @@ def make_settings(tmp_path: Path, **overrides) -> Settings:
         telegram_chat_id=None,
         discord_webhook_url=None,
         log_level="INFO",
+        language="en",
     )
     values.update(overrides)
     return Settings(**values)
@@ -145,10 +146,10 @@ def test_new_listing_triggers_one_notification(env):
     assert result["status"] == "ok"
     assert [h["angebotUuid"] for h in result["new"]] == ["b"]
     assert len(notifier.sent) == 1
-    assert notifier.sent[0]["title"] == "Neue Wohnung: Neue Gasse 1/3/15"
+    assert notifier.sent[0]["title"] == "New apartment: Neue Gasse 1/3/15"
     assert notifier.sent[0]["url"] == "https://www.meinwohnticket.wien/wohnungen/b"
     assert "SMART" in notifier.sent[0]["body"]
-    assert "€ 599,34" in notifier.sent[0]["body"]
+    assert "€ 599.34" in notifier.sent[0]["body"]
 
 
 def test_removed_listing_is_tracked_and_reappearance_notifies_again(env):
@@ -238,3 +239,25 @@ def test_format_listing_matches_site_layout():
     assert "Ausstattung: Lift, Badewanne" in body
     assert "Online seit: 16.10.2026 06:38" in body
     assert url == "https://www.meinwohnticket.wien/wohnungen/abc"
+
+
+def test_format_listing_in_english():
+    title, body, _ = format_listing(hit("abc"), "en")
+    assert title == "Meischlgasse 50/3/15"
+    assert "2 rooms · 54.99 m²" in body
+    assert "Monthly: € 599.34" in body
+    assert "Equipment: Elevator, Bathtub" in body
+    assert "Listed since: 16.10.2026 06:38" in body
+
+
+def test_german_notification_texts(env):
+    settings, db, notifier = env
+    settings = make_settings(settings.data_dir, language="de")
+    client = FakeClient([])
+    checker, _ = build_checker(settings, db, notifier, client)
+    checker.run_once()
+    assert notifier.sent[0]["title"] == "Wohn-Ticket-Checker läuft"
+    client.hits = [hit("a")]
+    checker.run_once()
+    assert notifier.sent[-1]["title"] == "Neue Wohnung: Meischlgasse 50/3/15"
+    assert "Monatlich: € 599,34" in notifier.sent[-1]["body"]

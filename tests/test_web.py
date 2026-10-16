@@ -29,7 +29,7 @@ class Harness:
             return [{"name": "c", "value": "fresh", "domain": "www.meinwohnticket.wien", "path": "/"}]
 
         self.service = Service(
-            settings or Settings(data_dir=tmp_path),
+            settings or Settings(data_dir=tmp_path, language="en"),
             login_fn=fake_login,
             client_factory=lambda cookies: self.client,
             notifier_factory=lambda s: self.notifier,
@@ -46,7 +46,9 @@ def unconfigured(tmp_path):
 
 @pytest.fixture
 def configured(tmp_path):
-    settings = Settings(data_dir=tmp_path, username="me", password="pw", search_url=SMART_URL, ntfy_topic="t")
+    settings = Settings(
+        data_dir=tmp_path, username="me", password="pw", search_url=SMART_URL, ntfy_topic="t", language="en"
+    )
     h = Harness(tmp_path, settings)
     yield h
     h.service.stop()
@@ -208,3 +210,18 @@ def test_notifier_does_not_leak_secrets_in_public_settings_page(configured):
     assert page.status_code == 200
     assert '"password": ""' in page.text or '"password":""' in page.text
     assert "pw" not in page.text.split("const current =")[1].split(";")[0]
+
+
+def test_language_switch_translates_pages_and_persists(unconfigured, tmp_path):
+    assert "Welcome" in unconfigured.http.get("/settings").text
+    response = unconfigured.http.get("/lang/de", headers={"referer": "/settings"}, follow_redirects=False)
+    assert response.status_code == 303 and response.headers["location"] == "/settings"
+    page = unconfigured.http.get("/settings").text
+    assert "Willkommen" in page and "Art der Wohnung" in page
+    assert json.loads((tmp_path / "config.json").read_text())["language"] == "de"
+    assert unconfigured.http.get("/api/status").json()["language"] == "de"
+    # validation messages follow the language
+    bad = unconfigured.http.post("/api/settings", json={"search_url": "https://example.com"}, headers=FETCH)
+    assert any("Benutzername" in e for e in bad.json()["errors"])
+    unconfigured.http.get("/lang/en")
+    assert "Apartment type" in unconfigured.http.get("/settings").text

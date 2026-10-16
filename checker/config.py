@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import parse_qs, urlparse
 
+from .i18n import DEFAULT_LANGUAGE, normalize_language, translate
+
 log = logging.getLogger(__name__)
 
 BASE_URL = "https://www.meinwohnticket.wien"
@@ -71,6 +73,7 @@ ENV_MAP: dict[str, str] = {
     "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
     "telegram_chat_id": "TELEGRAM_CHAT_ID",
     "discord_webhook_url": "DISCORD_WEBHOOK_URL",
+    "language": "LANGUAGE",
     "log_level": "LOG_LEVEL",
     "ui_host": "UI_HOST",
     "ui_port": "UI_PORT",
@@ -92,6 +95,7 @@ PERSISTED_FIELDS: tuple[str, ...] = (
     "telegram_bot_token",
     "telegram_chat_id",
     "discord_webhook_url",
+    "language",
 )
 SECRET_FIELDS: tuple[str, ...] = (
     "password",
@@ -221,10 +225,14 @@ class Settings:
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
     discord_webhook_url: str | None = None
+    language: str = DEFAULT_LANGUAGE
     log_level: str = "INFO"
     ui_host: str = "127.0.0.1"
     ui_port: int = 8080
     ui_password: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "language", normalize_language(self.language))
 
     # -- construction -----------------------------------------------------------------
     @classmethod
@@ -274,6 +282,7 @@ class Settings:
             failure_threshold=max(1, int(self.failure_threshold)),
             ntfy_server=(self.ntfy_server or "https://ntfy.sh").rstrip("/"),
             search_url=(self.search_url or DEFAULT_SEARCH_URL).strip(),
+            language=normalize_language(self.language),
             log_level=(self.log_level or "INFO").upper(),
         )
 
@@ -358,23 +367,24 @@ class Settings:
     def search_sort(self) -> dict[str, str]:
         return build_sort(self.search_url)
 
-    def validate(self) -> list[str]:
+    def validate(self, lang: str | None = None) -> list[str]:
         """Human-readable problems that make the configuration unusable."""
+        lang = lang or self.language
         problems: list[str] = []
         if not self.is_configured:
-            problems.append("Enter your Stadt Wien Konto username and password.")
+            problems.append(translate(lang, "v_credentials"))
         if not is_search_url(self.search_url):
-            problems.append("The search URL must be a https://www.meinwohnticket.wien/wohnungen?... link.")
+            problems.append(translate(lang, "v_search_url"))
         if not 1 <= self.interval_minutes <= 7 * 24 * 60:
-            problems.append("The check interval must be between 1 minute and 7 days.")
+            problems.append(translate(lang, "v_interval"))
         if self.ntfy_topic and not NTFY_TOPIC_RE.match(self.ntfy_topic):
-            problems.append("The ntfy topic may only contain letters, digits, '-' and '_' (max. 64 characters).")
+            problems.append(translate(lang, "v_ntfy_topic"))
         if self.ntfy_topic and not self.ntfy_server.startswith(("http://", "https://")):
-            problems.append("The ntfy server must be a http(s) URL.")
+            problems.append(translate(lang, "v_ntfy_server"))
         if bool(self.telegram_bot_token) != bool(self.telegram_chat_id):
-            problems.append("Telegram needs both the bot token and the chat id.")
+            problems.append(translate(lang, "v_telegram"))
         if self.discord_webhook_url and not self.discord_webhook_url.startswith("https://"):
-            problems.append("The Discord webhook must be a https URL.")
+            problems.append(translate(lang, "v_discord"))
         if not self.channels:
-            problems.append("Configure at least one notification channel (ntfy, Telegram or Discord).")
+            problems.append(translate(lang, "v_channel"))
         return problems

@@ -10,6 +10,7 @@ from . import auth
 from .api import SESSION_COOKIE_NAME, AuthRequired, MwtClient
 from .config import Settings, build_filter, build_sort
 from .db import Database
+from .i18n import translate
 from .notify import Notifier, format_listing
 
 log = logging.getLogger(__name__)
@@ -136,15 +137,15 @@ class Checker:
         if self._client is not None:
             self._cookies.save(self._client.export_cookies())
 
+        lang = self.settings.language
         first_run = self.db.get_meta("initialized") is None
         if first_run:
             self.db.set_meta("initialized", now)
             log.info("First run: %d listing(s) match right now; they are stored, not reported as new", len(hits))
             if self.settings.notify_on_start:
                 self.notifier.send(
-                    "Wohn-Ticket checker is running",
-                    f"Watching your search. {len(hits)} apartment(s) match right now. "
-                    "You will be notified as soon as a new one appears.",
+                    translate(lang, "n_running_title"),
+                    translate(lang, "n_running_body", n=len(hits)),
                     url=self.settings.search_url,
                     tags=["house"],
                 )
@@ -154,9 +155,9 @@ class Checker:
             if removed:
                 log.info("%d listing(s) disappeared from the search", len(removed))
                 if self.settings.notify_on_removed:
-                    names = [format_listing(hit)[0] for hit in removed]
+                    names = [format_listing(hit, lang)[0] for hit in removed]
                     self.notifier.send(
-                        f"{len(removed)} apartment(s) no longer listed",
+                        translate(lang, "n_removed_title", n=len(removed)),
                         "\n".join(f"• {name}" for name in names),
                         url=self.settings.search_url,
                         priority="low",
@@ -185,13 +186,14 @@ class Checker:
     def _notify_new(self, hits: list[dict[str, Any]], now: str) -> None:
         if not hits:
             return
+        lang = self.settings.language
         if len(hits) > MAX_INDIVIDUAL_NOTIFICATIONS:
             lines = []
             for hit in hits:
-                title, body, _ = format_listing(hit)
+                title, body, _ = format_listing(hit, lang)
                 lines.append(f"• {title} – {body.splitlines()[0]}")
             self.notifier.send(
-                f"{len(hits)} new apartments",
+                translate(lang, "n_many_new_title", n=len(hits)),
                 "\n".join(lines),
                 url=self.settings.search_url,
                 priority="high",
@@ -199,8 +201,10 @@ class Checker:
             )
         else:
             for hit in hits:
-                title, body, url = format_listing(hit)
-                self.notifier.send(f"Neue Wohnung: {title}", body, url=url, priority="high", tags=["house"])
+                title, body, url = format_listing(hit, lang)
+                self.notifier.send(
+                    translate(lang, "n_new_title", title=title), body, url=url, priority="high", tags=["house"]
+                )
         self.db.mark_notified([hit["angebotUuid"] for hit in hits], now)
 
     def _register_failure(self, exc: Exception) -> None:
@@ -210,16 +214,20 @@ class Checker:
         if self._failures == threshold or (
             self._failures > threshold and (self._failures - threshold) % FAILURE_REMINDER_EVERY == 0
         ):
+            lang = self.settings.language
             self.notifier.send(
-                "Wohn-Ticket checker: problem",
-                f"The last {self._failures} checks failed. Latest error:\n{str(exc)[:600]}",
+                translate(lang, "n_problem_title"),
+                translate(lang, "n_problem_body", n=self._failures, error=str(exc)[:600]),
                 priority="high",
                 tags=["warning"],
             )
 
     def _register_success(self) -> None:
         if self._failures >= self.settings.failure_threshold:
-            self.notifier.send("Wohn-Ticket checker: recovered", "Checks are working again.", tags=["white_check_mark"])
+            lang = self.settings.language
+            self.notifier.send(
+                translate(lang, "n_recovered_title"), translate(lang, "n_recovered_body"), tags=["white_check_mark"]
+            )
         if self._failures:
             self._failures = 0
             self.db.set_meta("consecutive_failures", "0")

@@ -114,13 +114,13 @@ def test_settings_with_updates_blank_clears_optional_and_restores_default():
 
 
 def test_validate_reports_problems():
-    problems = Settings(search_url="https://example.com", interval_minutes=0).validate()
+    problems = Settings(search_url="https://example.com", interval_minutes=0, language="en").validate()
     assert any("username and password" in p for p in problems)
     assert any("search URL" in p for p in problems)
     assert any("interval" in p for p in problems)
     assert any("notification channel" in p for p in problems)
 
-    ok = Settings(username="u", password="p", search_url=SMART_URL, ntfy_topic="abc-123")
+    ok = Settings(username="u", password="p", search_url=SMART_URL, ntfy_topic="abc-123", language="en")
     assert ok.validate() == []
 
     bad_topic = ok.with_updates(ntfy_topic="has space")
@@ -128,3 +128,11 @@ def test_validate_reports_problems():
 
     half_telegram = ok.with_updates(telegram_bot_token="tok")
     assert any("Telegram" in p for p in half_telegram.validate())
+
+
+def test_language_setting_normalizes_and_translates_validation():
+    assert Settings(language="DE").language == "de"
+    assert Settings(language="fr").language == "de"  # unknown -> default
+    assert Settings.load("/nonexistent", env={"LANGUAGE": "en"}).language == "en"
+    german = Settings(search_url="https://example.com").validate()
+    assert any("Such-URL" in p for p in german)

@@ -10,41 +10,39 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from .config import BASE_URL, Settings
+from .i18n import translate
 
 log = logging.getLogger(__name__)
 
 VIENNA = ZoneInfo("Europe/Vienna")
 
+# Proper names used by the City of Vienna; kept in German in both languages.
 KIND_LABELS = {
     "GEMEINDEWOHNUNG": "Gemeindewohnung",
     "GEFOERDERTE_WOHNUNG": "Geförderte Wohnung",
     "GEFOERDERTE_EIGENTUMSWOHNUNG": "Geförderte Eigentumswohnung",
     "WBI_WOHNUNG": "WBI-Wohnung",
 }
-FEATURE_LABELS = {
-    "LIFT": "Lift",
-    "BALKON": "Balkon",
-    "LOGGIA": "Loggia",
-    "TERRASSE": "Terrasse",
-    "GARTEN": "Garten",
-    "BADEWANNE": "Badewanne",
-    "DUSCHE": "Dusche",
-    "STUFENLOS": "stufenlos",
-    "ROLLSTUHLGERECHT": "rollstuhlgerecht",
-}
 NTFY_PRIORITY = {"low": 2, "default": 3, "high": 4, "urgent": 5}
 
 
-def _label(value: str | None, table: dict[str, str]) -> str:
+def _kind_label(value: str | None) -> str:
     if not value:
         return ""
-    return table.get(value, value.replace("_", " ").title())
+    return KIND_LABELS.get(value, value.replace("_", " ").title())
 
 
-def _euro(value: Any) -> str:
+def _feature_label(value: str, lang: str) -> str:
+    text = translate(lang, f"f_{value}")
+    return text if text != f"f_{value}" else value.replace("_", " ").title()
+
+
+def _euro(value: Any, lang: str) -> str:
     if value is None:
         return "–"
-    text = f"{float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    text = f"{float(value):,.2f}"
+    if lang != "en":
+        text = text.replace(",", "X").replace(".", ",").replace("X", ".")
     return f"€ {text}"
 
 
@@ -52,12 +50,12 @@ def listing_url(hit: dict[str, Any]) -> str:
     return f"{BASE_URL}/wohnungen/{hit['angebotUuid']}"
 
 
-def format_listing(hit: dict[str, Any]) -> tuple[str, str, str]:
+def format_listing(hit: dict[str, Any], lang: str = "de") -> tuple[str, str, str]:
     """Return ``(title, body, url)`` for one apartment listing."""
     street = " ".join(part for part in [hit.get("strasse"), hit.get("orientierungsnummer")] if part)
     door = "/".join(str(part) for part in [hit.get("stiege"), hit.get("tuernummer")] if part)
     address = f"{street}/{door}" if door else street
-    kind = _label(hit.get("wohnungsart") or hit.get("vergabetyp"), KIND_LABELS)
+    kind = _kind_label(hit.get("wohnungsart") or hit.get("vergabetyp"))
     if hit.get("smartZusicherung"):
         kind = f"SMART · {kind}" if kind else "SMART"
 
@@ -65,36 +63,40 @@ def format_listing(hit: dict[str, Any]) -> tuple[str, str, str]:
     size = hit.get("qmZinsflaeche")
     facts = []
     if rooms is not None:
-        facts.append(f"{rooms} Zi.")
+        facts.append(translate(lang, "l_rooms", n=rooms))
     if size is not None:
-        facts.append(f"{size:g} m²".replace(".", ","))
+        size_text = f"{size:g}"
+        if lang != "en":
+            size_text = size_text.replace(".", ",")
+        facts.append(f"{size_text} m²")
     lines = [f"{hit.get('plz', '')} {hit.get('ort', '')}".strip(), " · ".join(facts)]
     if kind:
         lines.append(kind)
     if hit.get("mieteGesamt") is not None:
-        lines.append(f"Monatlich: {_euro(hit['mieteGesamt'])}")
+        lines.append(f"{translate(lang, 'l_monthly')} {_euro(hit['mieteGesamt'], lang)}")
     if hit.get("eigenmittelGesamt"):
-        lines.append(f"Eigenmittel: {_euro(hit['eigenmittelGesamt'])}")
+        lines.append(f"{translate(lang, 'l_own_funds')} {_euro(hit['eigenmittelGesamt'], lang)}")
     if hit.get("gefoerderterKaufpreis"):
-        lines.append(f"Kaufpreis: {_euro(hit['gefoerderterKaufpreis'])}")
-    features = [_label(f, FEATURE_LABELS) for f in hit.get("ausstattung") or []]
+        lines.append(f"{translate(lang, 'l_price')} {_euro(hit['gefoerderterKaufpreis'], lang)}")
+    features = [_feature_label(f, lang) for f in hit.get("ausstattung") or []]
     if features:
-        lines.append("Ausstattung: " + ", ".join(features))
+        lines.append(f"{translate(lang, 'l_equipment')} " + ", ".join(features))
     published = hit.get("erstellungszeitpunkt")
     if published:
         try:
             stamp = datetime.fromisoformat(published).astimezone(VIENNA)
-            lines.append(f"Online seit: {stamp:%d.%m.%Y %H:%M}")
+            lines.append(f"{translate(lang, 'l_since')} {stamp:%d.%m.%Y %H:%M}")
         except ValueError:
             pass
     body = "\n".join(line for line in lines if line)
-    return address or "Neue Wohnung", body, listing_url(hit)
+    return address or translate(lang, "l_new_apartment"), body, listing_url(hit)
 
 
 class Notifier:
     def __init__(self, settings: Settings, http: httpx.Client | None = None):
         self._settings = settings
         self._http = http or httpx.Client(timeout=20)
+        self.lang = settings.language
         self.channels: list[str] = []
         if settings.ntfy_topic:
             self.channels.append("ntfy")
@@ -139,7 +141,7 @@ class Notifier:
         }
         if url:
             payload["click"] = url
-            payload["actions"] = [{"action": "view", "label": "Öffnen", "url": url}]
+            payload["actions"] = [{"action": "view", "label": translate(self.lang, "open").capitalize(), "url": url}]
         headers = {}
         if self._settings.ntfy_token:
             headers["Authorization"] = f"Bearer {self._settings.ntfy_token}"
@@ -149,7 +151,7 @@ class Notifier:
     def _send_telegram(self, title: str, body: str, url: str | None, priority: str, tags: list[str]) -> None:
         text = f"<b>{html.escape(title)}</b>\n{html.escape(body)}"
         if url:
-            text += f'\n<a href="{html.escape(url)}">Wohnung öffnen</a>'
+            text += f'\n<a href="{html.escape(url)}">{html.escape(translate(self.lang, "l_open"))}</a>'
         response = self._http.post(
             f"https://api.telegram.org/bot{self._settings.telegram_bot_token}/sendMessage",
             json={

@@ -17,6 +17,7 @@ from .checker import Checker
 from .config import Settings
 from .db import Database
 from .filters import describe_search
+from .i18n import translate
 from .notify import Notifier, format_listing
 
 log = logging.getLogger(__name__)
@@ -125,6 +126,16 @@ class Service:
             log.info("Settings saved to %s", new.config_path)
         self.trigger_check()
 
+    def set_language(self, language: str) -> None:
+        """Switch the UI/notification language without touching anything else."""
+        with self._lock:
+            new = self.settings.with_updates(language=language)
+            if new.language == self.settings.language:
+                return
+            new.save()
+            self.settings = new
+            self.checker = self._build_checker(new)
+
     def test_login(self, username: str, password: str) -> str:
         """Log in with the given credentials; on success the session is kept for the checker."""
         with self._lock:
@@ -146,8 +157,8 @@ class Service:
         if not notifier.enabled:
             raise ValueError("No notification channel configured.")
         return notifier.send(
-            "Wohn-Ticket checker: test",
-            "If you can read this, notifications are configured correctly.",
+            translate(settings.language, "n_test_title"),
+            translate(settings.language, "n_test_body"),
             url=settings.search_url,
             tags=["white_check_mark"],
         )
@@ -156,13 +167,14 @@ class Service:
     def status(self) -> dict[str, Any]:
         settings = self.settings
         runs = self.db.last_runs(15)
-        listings = [self._listing_view(hit) for hit in self.db.active_listings()]
+        listings = [self._listing_view(hit, settings.language) for hit in self.db.active_listings()]
         return {
             "version": __version__,
+            "language": settings.language,
             "configured": settings.is_configured,
             "username": settings.username,
             "search_url": settings.search_url,
-            "search_summary": describe_search(settings.search_url),
+            "search_summary": describe_search(settings.search_url, settings.language),
             "interval_minutes": settings.interval_minutes,
             "channels": settings.channels,
             "checking": self.checking,
@@ -177,8 +189,8 @@ class Service:
         }
 
     @staticmethod
-    def _listing_view(hit: dict[str, Any]) -> dict[str, Any]:
-        title, body, url = format_listing(hit)
+    def _listing_view(hit: dict[str, Any], lang: str = "de") -> dict[str, Any]:
+        title, body, url = format_listing(hit, lang)
         return {
             "uuid": hit.get("angebotUuid"),
             "title": title,

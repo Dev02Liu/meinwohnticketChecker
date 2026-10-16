@@ -13,7 +13,8 @@ from fastapi.templating import Jinja2Templates
 
 from . import __version__
 from .config import PERSISTED_FIELDS, SECRET_FIELDS, Settings, is_search_url
-from .filters import FILTER_CATALOG, describe_search
+from .filters import catalog_for, describe_search
+from .i18n import LANGUAGES, normalize_language, strings_for, translate
 from .service import Service
 
 log = logging.getLogger(__name__)
@@ -49,6 +50,12 @@ def create_app(service: Service) -> FastAPI:
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
     basic = HTTPBasic(auto_error=False)
 
+    def lang() -> str:
+        return service.settings.language
+
+    def t(key: str, **values: Any) -> str:
+        return translate(lang(), key, **values)
+
     def require_auth(credentials: HTTPBasicCredentials | None = Depends(basic)) -> None:
         expected = service.settings.ui_password
         if not expected:
@@ -70,10 +77,15 @@ def create_app(service: Service) -> FastAPI:
     api_deps = [Depends(require_auth), Depends(require_fetch)]
 
     def render(request: Request, name: str, **context: Any) -> HTMLResponse:
+        current = lang()
         context.update(
             version=__version__,
             configured=service.settings.is_configured,
             ui_password_set=bool(service.settings.ui_password),
+            lang=current,
+            languages=LANGUAGES,
+            t=lambda key, **values: translate(current, key, **values),
+            i18n=strings_for(current),
         )
         return templates.TemplateResponse(request, name, context)
 
@@ -91,8 +103,16 @@ def create_app(service: Service) -> FastAPI:
             "settings.html",
             settings=service.settings.public_dict(),
             setup=not service.settings.is_configured,
-            filter_catalog=FILTER_CATALOG,
+            filter_catalog=catalog_for(lang()),
         )
+
+    @app.get("/lang/{code}", dependencies=page_deps)
+    def switch_language(code: str, request: Request) -> Any:
+        service.set_language(normalize_language(code))
+        target = request.headers.get("referer") or "/"
+        if not target.startswith(str(request.base_url).rstrip("/")) and not target.startswith("/"):
+            target = "/"
+        return RedirectResponse(target, status_code=303)
 
     @app.get("/healthz")
     def healthz() -> dict[str, Any]:
@@ -109,7 +129,7 @@ def create_app(service: Service) -> FastAPI:
             new_settings = apply_payload(service.settings, payload)
         except (ValueError, TypeError) as exc:
             return JSONResponse({"ok": False, "errors": [str(exc)]}, status_code=400)
-        errors = new_settings.validate()
+        errors = new_settings.validate(lang())
         if errors:
             return JSONResponse({"ok": False, "errors": errors}, status_code=400)
         service.update_settings(new_settings)
@@ -120,7 +140,7 @@ def create_app(service: Service) -> FastAPI:
         username = str(payload.get("username") or service.settings.username or "").strip()
         password = str(payload.get("password") or service.settings.password or "")
         if not username or not password:
-            return JSONResponse({"ok": False, "error": "Username and password are required."}, status_code=400)
+            return JSONResponse({"ok": False, "error": t("api_credentials_required")}, status_code=400)
         try:
             state = service.test_login(username, password)
         except Exception as exc:  # noqa: BLE001 - report any failure to the UI
@@ -132,10 +152,7 @@ def create_app(service: Service) -> FastAPI:
     def api_test_search(payload: dict[str, Any] = Body(...)) -> Any:
         url = str(payload.get("search_url") or "").strip()
         if not is_search_url(url):
-            return JSONResponse(
-                {"ok": False, "error": "Please paste a https://www.meinwohnticket.wien/wohnungen?... URL."},
-                status_code=400,
-            )
+            return JSONResponse({"ok": False, "error": t("api_search_url_required")}, status_code=400)
         try:
             total, hits = service.test_search(url)
         except Exception as exc:  # noqa: BLE001
@@ -144,8 +161,8 @@ def create_app(service: Service) -> FastAPI:
         return {
             "ok": True,
             "total": total,
-            "summary": describe_search(url),
-            "listings": [Service._listing_view(hit) for hit in hits[:10]],
+            "summary": describe_search(url, lang()),
+            "listings": [Service._listing_view(hit, lang()) for hit in hits[:10]],
         }
 
     @app.post("/api/test/notification", dependencies=api_deps)
@@ -153,18 +170,18 @@ def create_app(service: Service) -> FastAPI:
         try:
             candidate = apply_payload(service.settings, payload)
             sent = service.test_notification(candidate)
-        except (ValueError, TypeError) as exc:
+        except ValueError:
+            return JSONResponse({"ok": False, "error": t("api_no_channel")}, status_code=400)
+        except TypeError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
         if not sent:
-            return JSONResponse(
-                {"ok": False, "error": "Sending failed. Check the values and the container log."}, status_code=502
-            )
+            return JSONResponse({"ok": False, "error": t("api_send_failed")}, status_code=502)
         return {"ok": True, "channels": candidate.channels}
 
     @app.post("/api/check", dependencies=api_deps)
     def api_check() -> Any:
         if not service.settings.is_configured:
-            return JSONResponse({"ok": False, "error": "Finish the setup first."}, status_code=400)
+            return JSONResponse({"ok": False, "error": t("api_finish_setup")}, status_code=400)
         service.trigger_check()
         return {"ok": True}
 

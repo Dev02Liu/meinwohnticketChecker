@@ -1,5 +1,5 @@
 from checker.config import build_filter
-from checker.filters import FILTER_CATALOG, describe_search, filters_to_url, url_to_filters
+from checker.filters import FILTER_CATALOG, catalog_for, describe_search, filters_to_url, url_to_filters
 
 BASE = "https://www.meinwohnticket.wien/wohnungen"
 SMART_URL = BASE + "?anzahlRaeume=2-3&foerderungen=SMART_ZUSICHERUNG"
@@ -73,3 +73,15 @@ def test_describe_search():
         "3 Wohnräume",
         "Einmalige Kosten bis € 6.000",
     ]
+
+
+def test_describe_search_in_english_and_localized_catalog():
+    assert describe_search(SMART_URL, "en") == ["2–3 Rooms", "SMART apartments"]
+    assert describe_search(BASE + "?bezirke=10&monatlicheKosten=-700", "en") == ["10. district", "Monthly costs up to € 700"]
+    english = {entry["param"]: entry for entry in catalog_for("en")}
+    assert english["wohnungsarten"]["label"] == "Apartment type"
+    assert english["ausstattung"]["options"][0] == {"value": "LIFT", "label": "Elevator"}
+    assert "label_en" not in english["ausstattung"]
+    german = {entry["param"]: entry for entry in catalog_for("de")}
+    assert german["ausstattung"]["options"][0]["label"] == "Aufzug"
+    assert german["bezirke"]["help"] == "leer = alle Bezirke"
