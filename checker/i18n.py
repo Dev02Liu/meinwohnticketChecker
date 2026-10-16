@@ -112,6 +112,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "discord_webhook": "Discord webhook URL",
         "step_behaviour": "Behaviour",
         "interval_label": "Check every … minutes",
+        "interval_hint": (
+            "Hourly is plenty: listings appear in batches, stay online for about two days and are allocated "
+            "by points, not by speed. Once a day (1440) is the bare minimum."
+        ),
         "failure_label": "Warn after … failed checks",
         "notify_on_start_label": "Send a confirmation message after the first check",
         "notify_on_removed_label": "Also notify when a listing disappears",
@@ -284,6 +288,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "discord_webhook": "Discord-Webhook-URL",
         "step_behaviour": "Verhalten",
         "interval_label": "Alle … Minuten prüfen",
+        "interval_hint": (
+            "Stündlich reicht: Wohnungen erscheinen schubweise, bleiben etwa zwei Tage online und werden nach "
+            "Punkten vergeben, nicht nach Schnelligkeit. Einmal täglich (1440) ist die Untergrenze."
+        ),
         "failure_label": "Warnen nach … fehlgeschlagenen Prüfungen",
         "notify_on_start_label": "Nach der ersten Prüfung eine Bestätigung senden",
         "notify_on_removed_label": "Auch benachrichtigen, wenn eine Wohnung verschwindet",

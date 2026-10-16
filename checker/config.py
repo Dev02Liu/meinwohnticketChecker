@@ -215,7 +215,7 @@ class Settings:
     password: str | None = None
     session_cookie: str | None = None
     search_url: str = DEFAULT_SEARCH_URL
-    interval_minutes: int = 10
+    interval_minutes: int = 60
     notify_on_start: bool = True
     notify_on_removed: bool = False
     failure_threshold: int = 3

@@ -110,7 +110,7 @@ def test_settings_with_updates_blank_clears_optional_and_restores_default():
     settings = Settings(username="x", password="y", ntfy_topic="t", interval_minutes=30)
     updated = settings.with_updates(ntfy_topic="", interval_minutes="")
     assert updated.ntfy_topic is None
-    assert updated.interval_minutes == 10
+    assert updated.interval_minutes == 60
 
 
 def test_validate_reports_problems():

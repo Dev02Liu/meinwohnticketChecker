@@ -81,8 +81,10 @@ Open **http://localhost:8080**. The language can be switched with *DE · EN* at 
    a random topic name, then in the app tap *+* / *Subscribe to topic* and enter exactly that name.
    Click *Send test notification*; it should arrive within seconds. Telegram (bot token + chat id)
    and Discord (webhook URL) are available as alternatives.
-4. **Behaviour** – how often to check (10 minutes is a good default; new listings usually appear in
-   the morning), then **Save and start watching**.
+4. **Behaviour** – how often to check, then **Save and start watching**. The default of 60 minutes
+   is plenty: listings appear in batches (usually in the morning), stay online for about two days,
+   and are allocated by points, not by who clicks first. Once a day (1440) is the bare minimum; with
+   that you may learn about a listing almost a day late and have little time left to apply.
 
 The first check only stores what is currently listed and sends one confirmation message. From then
 on every new listing triggers a notification with address, rooms, size, rent and a link to it.
@@ -137,7 +139,7 @@ and start again; the UI is then at http://localhost:8585.
 | Username / password | `MWT_USERNAME`, `MWT_PASSWORD` | – | Stadt Wien Konto. |
 | – | `MWT_SESSION_COOKIE` | – | Alternative to credentials: value of the `wswinteressentenportalSessionCookiewwwmeinwohnticketwien` cookie from a logged-in browser. Expires. |
 | Filters / search URL | `MWT_SEARCH_URL` | all listings | The website's own search URL; the picker generates it. |
-| Check every … minutes | `CHECK_INTERVAL_MINUTES` | `10` | Plus up to 30 s random jitter. |
+| Check every … minutes | `CHECK_INTERVAL_MINUTES` | `60` | Plus up to 30 s random jitter; 1440 = once a day is the minimum. |
 | ntfy topic / server / token | `NTFY_TOPIC`, `NTFY_SERVER`, `NTFY_TOKEN` | –, `https://ntfy.sh`, – | Token only for protected topics or self-hosted servers. |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | – | Bot via @BotFather; chat id e.g. via @userinfobot. |
 | Discord | `DISCORD_WEBHOOK_URL` | – | Channel → Integrations → Webhooks. |

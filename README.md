@@ -83,8 +83,11 @@ cd meinwohnticketChecker
    zufälligen Themennamen zu bekommen, dann in der App auf *+* / *Thema abonnieren* tippen und genau
    diesen Namen eingeben. *Testbenachrichtigung senden* klicken; sie sollte in Sekunden ankommen.
    Alternativ gehen Telegram (Bot-Token + Chat-ID) und Discord (Webhook-URL).
-4. **Verhalten** – wie oft geprüft wird (10 Minuten sind ein guter Standard; neue Angebote erscheinen
-   meist am Vormittag), dann **Speichern und beobachten**.
+4. **Verhalten** – wie oft geprüft wird, dann **Speichern und beobachten**. Der Standard von 60 Minuten
+   reicht völlig: Wohnungen erscheinen schubweise (meist am Vormittag), bleiben etwa zwei Tage online
+   und werden nach Punkten vergeben, nicht danach, wer zuerst klickt. Einmal täglich (1440) ist die
+   Untergrenze; dann erfährt man von einer Wohnung unter Umständen erst fast einen Tag später und hat
+   wenig Zeit für die Anmeldung.
 
 Die erste Prüfung speichert nur, was aktuell angeboten wird, und schickt eine Bestätigung. Danach
 löst jede neue Wohnung eine Benachrichtigung mit Adresse, Zimmern, Größe, Miete und Link aus.
@@ -140,7 +143,7 @@ und neu starten; die Oberfläche ist dann unter http://localhost:8585.
 | Benutzername / Passwort | `MWT_USERNAME`, `MWT_PASSWORD` | – | Stadt Wien Konto. |
 | – | `MWT_SESSION_COOKIE` | – | Alternative zu den Zugangsdaten: Wert des Cookies `wswinteressentenportalSessionCookiewwwmeinwohnticketwien` aus einem angemeldeten Browser. Läuft ab. |
 | Filter / Such-URL | `MWT_SEARCH_URL` | alle Angebote | Die Such-URL der Website; die Filterauswahl erzeugt sie. |
-| Alle … Minuten prüfen | `CHECK_INTERVAL_MINUTES` | `10` | Plus bis zu 30 s Zufallsversatz. |
+| Alle … Minuten prüfen | `CHECK_INTERVAL_MINUTES` | `60` | Plus bis zu 30 s Zufallsversatz; 1440 = einmal täglich ist die Untergrenze. |
 | ntfy-Thema / -Server / -Token | `NTFY_TOPIC`, `NTFY_SERVER`, `NTFY_TOKEN` | –, `https://ntfy.sh`, – | Token nur für geschützte Themen oder eigene Server. |
 | Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | – | Bot über @BotFather; Chat-ID z. B. über @userinfobot. |
 | Discord | `DISCORD_WEBHOOK_URL` | – | Kanal → Integrationen → Webhooks. |
