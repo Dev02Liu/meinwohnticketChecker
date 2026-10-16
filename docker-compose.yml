@@ -1,0 +1,28 @@
+services:
+  checker:
+    build: .
+    image: meinwohnticket-checker:latest
+    container_name: meinwohnticket-checker
+    # Optional: pre-fill settings from a .env file (the web UI works without one).
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # Web UI at http://localhost:${HOST_PORT:-8080}. Put HOST_PORT=8585 (or any free port) into
+      # a .env file next to this compose file if 8080 is already in use on your machine.
+      # Bound to localhost on purpose; change 127.0.0.1 to 0.0.0.0 to reach it from other devices
+      # on your network, and set UI_PASSWORD in .env when you do.
+      - "127.0.0.1:${HOST_PORT:-8080}:8080"
+    volumes:
+      - checker-data:/data
+    restart: unless-stopped
+    init: true          # reaps leftover Chromium processes after a login
+    shm_size: 512m      # Chromium needs more shared memory than Docker's default
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  checker-data:

@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}{{ "Setup" if setup else "Settings" }} · Mein Wohn-Ticket Checker{% endblock %}
+{% block content %}
+<h1>{{ "Welcome – let's set up your checker" if setup else "Settings" }}</h1>
+
+{% if setup %}
+<div class="alert info">
+  Four short steps: your Stadt Wien Konto login, the apartment search to watch, where to send
+  notifications, and how often to check. Everything is stored only in this container's data volume.
+</div>
+{% endif %}
+{% if not ui_password_set %}
+<div class="alert warn small">
+  This page is not password protected. Keep the port bound to <code>127.0.0.1</code> (the default) or set
+  <code>UI_PASSWORD</code> in your <code>.env</code> before exposing it to your network.
+</div>
+{% endif %}
+
+<form id="settings-form" class="steps" onsubmit="return false;">
+  <div class="card">
+    <h2>Stadt Wien Konto</h2>
+    <p class="muted small">The same login you use on meinwohnticket.wien. The checker logs in with a headless browser and only keeps the session cookie.</p>
+    <div class="row">
+      <div>
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" autocomplete="username" autocapitalize="off">
+      </div>
+      <div>
+        <label for="password">Password {% if settings.password_set %}<span class="hint">(stored – leave blank to keep)</span>{% endif %}</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" placeholder="{{ '••••••••' if settings.password_set else '' }}">
+      </div>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <button type="button" id="btn-login">Test login</button>
+    </div>
+    <div class="result" id="login-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Apartment search to watch</h2>
+    <p class="muted small">
+      Open the <a href="https://www.meinwohnticket.wien/wohnungen" target="_blank" rel="noopener">Wohnungssuche</a>,
+      set your filters (SMART, rooms, districts, max. rent, …) and paste the URL from the address bar.
+    </p>
+    <label for="search_url">Search URL</label>
+    <textarea id="search_url" name="search_url" spellcheck="false"></textarea>
+    <div class="actions" style="margin-top:12px">
+      <button type="button" id="btn-search">Test search</button>
+    </div>
+    <div class="result" id="search-result"></div>
+    <div id="search-preview" class="grid" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Notifications</h2>
+    <p class="muted small">Configure at least one channel. ntfy is the quickest: install the free ntfy app, subscribe to your topic, done.</p>
+
+    <label for="ntfy_topic">ntfy topic <span class="hint">– a long random name; anyone who knows it can read your notifications</span></label>
+    <div class="row">
+      <input type="text" id="ntfy_topic" name="ntfy_topic" autocapitalize="off" spellcheck="false">
+      <button type="button" id="btn-topic">Generate</button>
+    </div>
+    <div class="row">
+      <div>
+        <label for="ntfy_server">ntfy server</label>
+        <input type="url" id="ntfy_server" name="ntfy_server" placeholder="https://ntfy.sh">
+      </div>
+      <div>
+        <label for="ntfy_token">ntfy access token <span class="hint">(optional{% if settings.ntfy_token_set %}, stored{% endif %})</span></label>
+        <input type="password" id="ntfy_token" name="ntfy_token" autocomplete="off" placeholder="{{ '••••••••' if settings.ntfy_token_set else '' }}">
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="telegram_bot_token">Telegram bot token <span class="hint">(optional{% if settings.telegram_bot_token_set %}, stored{% endif %})</span></label>
+        <input type="password" id="telegram_bot_token" name="telegram_bot_token" autocomplete="off" placeholder="{{ '••••••••' if settings.telegram_bot_token_set else '' }}">
+      </div>
+      <div>
+        <label for="telegram_chat_id">Telegram chat id</label>
+        <input type="text" id="telegram_chat_id" name="telegram_chat_id" autocapitalize="off">
+      </div>
+    </div>
+
+    <label for="discord_webhook_url">Discord webhook URL <span class="hint">(optional{% if settings.discord_webhook_url_set %}, stored{% endif %})</span></label>
+    <input type="password" id="discord_webhook_url" name="discord_webhook_url" autocomplete="off" placeholder="{{ '••••••••' if settings.discord_webhook_url_set else '' }}">
+
+    <div class="actions" style="margin-top:12px">
+      <button type="button" id="btn-notify">Send test notification</button>
+    </div>
+    <div class="result" id="notify-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>Behaviour</h2>
+    <div class="row">
+      <div>
+        <label for="interval_minutes">Check every … minutes</label>
+        <input type="number" id="interval_minutes" name="interval_minutes" min="1" max="10080">
+      </div>
+      <div>
+        <label for="failure_threshold">Warn after … failed checks</label>
+        <input type="number" id="failure_threshold" name="failure_threshold" min="1" max="1000">
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="notify_on_start" name="notify_on_start"> Send a confirmation message after the first check</label>
+    <label class="check"><input type="checkbox" id="notify_on_removed" name="notify_on_removed"> Also notify when a listing disappears</label>
+  </div>
+
+  <div class="card">
+    <div class="actions">
+      <button type="button" class="primary" id="btn-save">{{ "Save and start watching" if setup else "Save" }}</button>
+      {% if not setup %}<a class="btn" href="/">Cancel</a>{% endif %}
+    </div>
+    <div class="result" id="save-result"></div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const current = {{ settings | tojson }};
+  const form = document.getElementById('settings-form');
+  const textFields = ['username', 'search_url', 'ntfy_topic', 'ntfy_server', 'telegram_chat_id', 'interval_minutes', 'failure_threshold'];
+  const boolFields = ['notify_on_start', 'notify_on_removed'];
+  const secretFields = ['password', 'ntfy_token', 'telegram_bot_token', 'discord_webhook_url'];
+  textFields.forEach(k => { if (current[k] !== null && current[k] !== undefined) form[k].value = current[k]; });
+  boolFields.forEach(k => { form[k].checked = !!current[k]; });
+
+  function values() {
+    const v = {};
+    textFields.forEach(k => v[k] = form[k].value.trim());
+    boolFields.forEach(k => v[k] = form[k].checked);
+    secretFields.forEach(k => v[k] = form[k].value);  // blank = keep stored value
+    return v;
+  }
+  function listingCard(item) {
+    const div = document.createElement('div');
+    div.className = 'listing';
+    const a = document.createElement('a'); a.href = item.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = item.title;
+    div.appendChild(a);
+    if (item.smart) { const b = document.createElement('span'); b.className = 'badge smart'; b.textContent = 'SMART'; div.appendChild(document.createTextNode(' ')); div.appendChild(b); }
+    const p = document.createElement('div'); p.className = 'small muted'; p.textContent = item.lines.join(' · ');
+    div.appendChild(p);
+    return div;
+  }
+
+  document.getElementById('btn-topic').addEventListener('click', () => {
+    const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(14));
+    form.ntfy_topic.value = 'wohnticket-' + Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+  });
+
+  document.getElementById('btn-login').addEventListener('click', e => busy(e.target, async () => {
+    const out = document.getElementById('login-result');
+    setResult(out, true, 'Logging in with a headless browser, this takes a few seconds…');
+    const r = await api('/api/test/login', {username: form.username.value.trim(), password: form.password.value});
+    setResult(out, r.ok, r.ok ? `Login works (account state: ${r.state}).` : r.error);
+  }));
+
+  document.getElementById('btn-search').addEventListener('click', e => busy(e.target, async () => {
+    const out = document.getElementById('search-result');
+    const preview = document.getElementById('search-preview');
+    preview.innerHTML = '';
+    const r = await api('/api/test/search', {search_url: form.search_url.value.trim()});
+    if (!r.ok) { setResult(out, false, r.error); return; }
+    setResult(out, true, `${r.total} apartment(s) match this search right now.` + (r.total > r.listings.length ? ` Showing the first ${r.listings.length}.` : ''));
+    r.listings.forEach(item => preview.appendChild(listingCard(item)));
+  }));
+
+  document.getElementById('btn-notify').addEventListener('click', e => busy(e.target, async () => {
+    const out = document.getElementById('notify-result');
+    const r = await api('/api/test/notification', values());
+    setResult(out, r.ok, r.ok ? `Test message sent via ${r.channels.join(', ')} – check your device.` : r.error);
+  }));
+
+  document.getElementById('btn-save').addEventListener('click', e => busy(e.target, async () => {
+    const out = document.getElementById('save-result');
+    const r = await api('/api/settings', values());
+    if (r.ok) { setResult(out, true, 'Saved. Starting the first check…'); setTimeout(() => location.href = '/', 600); }
+    else setResult(out, false, (r.errors || [r.error || 'Could not save.']).join(' '));
+  }));
+</script>
+{% endblock %}

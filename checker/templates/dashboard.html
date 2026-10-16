@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Mein Wohn-Ticket Checker{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+{% if not status.channels %}
+<div class="alert warn">No notification channel is configured. <a href="/settings">Add one in the settings</a>, otherwise new apartments are only logged.</div>
+{% endif %}
+{% if status.consecutive_failures >= 1 %}
+<div class="alert err">The last {{ status.consecutive_failures }} check(s) failed{% if status.last_result and status.last_result.error %}: {{ status.last_result.error }}{% endif %}</div>
+{% endif %}
+{% if not status.initialized %}
+<div class="alert info">The first check has not run yet. It stores what is currently listed and sends one confirmation message; from then on every new listing triggers a notification.</div>
+{% endif %}
+
+<div class="grid">
+  <div class="card">
+    <h2>Watching</h2>
+    <dl>
+      <dt>Account</dt><dd>{{ status.username or "session cookie" }}</dd>
+      <dt>Search</dt><dd><a href="{{ status.search_url }}" target="_blank" rel="noopener">open on meinwohnticket.wien</a></dd>
+      <dt>Interval</dt><dd>every {{ status.interval_minutes }} min</dd>
+      <dt>Channels</dt><dd>{{ status.channels | join(", ") or "none" }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h2>Status</h2>
+    <dl>
+      <dt>Now</dt><dd id="checking">{% if status.checking %}<span class="badge warn">checking…</span>{% else %}<span class="badge ok">idle</span>{% endif %}</dd>
+      <dt>Last check</dt>
+      <dd id="last-check">
+        {% if status.last_result %}
+          {% if status.last_result.status == "ok" %}
+            <span class="badge ok">ok</span> {{ status.last_result.total }} matching, {{ status.last_result.new }} new
+          {% else %}
+            <span class="badge err">error</span>
+          {% endif %}
+          <span class="muted small" data-time="{{ status.last_result.finished_at }}"></span>
+        {% elif status.runs %}
+          <span class="badge {{ 'ok' if status.runs[0].status == 'ok' else 'err' }}">{{ status.runs[0].status }}</span>
+          <span class="muted small" data-time="{{ status.runs[0].finished_at }}"></span>
+        {% else %}
+          <span class="muted">never</span>
+        {% endif %}
+      </dd>
+      <dt>Next check</dt><dd id="next-check" data-time="{{ status.next_check_at or '' }}">{{ "soon" if status.next_check_at else "–" }}</dd>
+      <dt>Stored</dt><dd>{{ status.listing_count }} active listing(s)</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Actions</h2>
+  <div class="actions">
+    <button class="primary" id="btn-check">Check now</button>
+    <button id="btn-notify">Send test notification</button>
+    <a class="btn" href="/settings">Settings</a>
+  </div>
+  <div class="result" id="action-result"></div>
+</div>
+
+<div class="card">
+  <h2>Currently matching ({{ status.listing_count }})</h2>
+  {% if status.listings %}
+  <div class="grid">
+    {% for item in status.listings %}
+    <div class="listing">
+      <a href="{{ item.url }}" target="_blank" rel="noopener">{{ item.title }}</a>
+      {% if item.smart %}<span class="badge smart">SMART</span>{% endif %}
+      <div class="small muted">{% for line in item.lines %}{{ line }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No apartment matches your filters right now. You will be notified when one appears.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Recent checks</h2>
+  {% if status.runs %}
+  <table>
+    <thead><tr><th>Time</th><th>Result</th><th>Matching</th><th>New</th><th>Gone</th><th>Details</th></tr></thead>
+    <tbody>
+    {% for run in status.runs %}
+      <tr>
+        <td><span data-time="{{ run.finished_at }}">{{ run.finished_at }}</span></td>
+        <td><span class="badge {{ 'ok' if run.status == 'ok' else 'err' }}">{{ run.status }}</span></td>
+        <td>{{ run.total_hits if run.total_hits is not none else "–" }}</td>
+        <td>{{ run.new_count }}</td>
+        <td>{{ run.removed_count }}</td>
+        <td class="small muted">{{ run.error or "" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No checks yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const fmt = new Intl.DateTimeFormat(undefined, {dateStyle: 'medium', timeStyle: 'short'});
+  function renderTimes() {
+    document.querySelectorAll('[data-time]').forEach(el => {
+      const iso = el.getAttribute('data-time');
+      if (!iso) return;
+      const d = new Date(iso);
+      if (isNaN(d)) return;
+      if (el.id === 'next-check') {
+        const sec = Math.round((d - Date.now()) / 1000);
+        el.textContent = sec <= 0 ? 'any moment' : (sec < 90 ? `in ${sec} s` : `in ${Math.round(sec / 60)} min (${fmt.format(d)})`);
+      } else {
+        el.textContent = fmt.format(d);
+      }
+    });
+  }
+  renderTimes();
+  setInterval(renderTimes, 1000);
+
+  let lastFinished = {{ (status.last_result.finished_at if status.last_result else (status.runs[0].finished_at if status.runs else "")) | tojson }};
+  async function poll() {
+    try {
+      const res = await fetch('/api/status', {headers: {'X-Requested-With': 'fetch'}});
+      const s = await res.json();
+      document.getElementById('checking').innerHTML = s.checking ? '<span class="badge warn">checking…</span>' : '<span class="badge ok">idle</span>';
+      document.getElementById('next-check').setAttribute('data-time', s.next_check_at || '');
+      const finished = s.last_result ? s.last_result.finished_at : (s.runs.length ? s.runs[0].finished_at : '');
+      if (finished && finished !== lastFinished) location.reload();
+    } catch (e) { /* ignore transient errors */ }
+  }
+  setInterval(poll, 5000);
+
+  const out = document.getElementById('action-result');
+  document.getElementById('btn-check').addEventListener('click', e => busy(e.target, async () => {
+    const r = await api('/api/check');
+    setResult(out, r.ok, r.ok ? 'Check started – the page refreshes when it is done.' : r.error);
+  }));
+  document.getElementById('btn-notify').addEventListener('click', e => busy(e.target, async () => {
+    const r = await api('/api/test/notification');
+    setResult(out, r.ok, r.ok ? 'Test notification sent via ' + r.channels.join(', ') + '.' : r.error);
+  }));
+</script>
+{% endblock %}

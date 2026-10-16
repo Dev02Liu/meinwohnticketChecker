@@ -1,0 +1,12 @@
+.env
+.env.*
+data/
+tests/
+.git/
+.github/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+README.md
+LICENSE

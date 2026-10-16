@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Mein Wohn-Ticket Checker{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f4f5f7; --card: #ffffff; --text: #1f2933; --muted: #6b7280; --border: #e5e7eb;
+      --accent: #c8102e; --accent-dark: #a30d25; --ok: #15803d; --warn: #b45309; --err: #b91c1c;
+      --ok-bg: #ecfdf5; --warn-bg: #fffbeb; --err-bg: #fef2f2; --info-bg: #eff6ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111418; --card: #1a1f26; --text: #e5e7eb; --muted: #9ca3af; --border: #2b3340;
+        --ok-bg: #0f2a1d; --warn-bg: #2d2008; --err-bg: #2d1414; --info-bg: #10233a;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+    a { color: inherit; }
+    header { background: var(--card); border-bottom: 1px solid var(--border); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+    header .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; gap: 16px; }
+    .brand { font-weight: 700; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+    .brand span.logo { display: inline-block; width: 12px; height: 20px; background: var(--accent); border-radius: 2px; }
+    nav a { text-decoration: none; color: var(--muted); margin-left: 16px; }
+    nav a.active, nav a:hover { color: var(--text); }
+    main { padding: 24px 0 48px; }
+    h1 { font-size: 22px; margin: 0 0 16px; }
+    h2 { font-size: 16px; margin: 0 0 12px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 13px; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+    dt { color: var(--muted); }
+    dd { margin: 0; word-break: break-word; }
+    .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .badge.ok { background: var(--ok-bg); color: var(--ok); }
+    .badge.warn { background: var(--warn-bg); color: var(--warn); }
+    .badge.err { background: var(--err-bg); color: var(--err); }
+    .badge.smart { background: #ede9fe; color: #5b21b6; }
+    .alert { border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+    .alert.info { background: var(--info-bg); }
+    .alert.warn { background: var(--warn-bg); color: var(--warn); }
+    .alert.err { background: var(--err-bg); color: var(--err); }
+    .alert.ok { background: var(--ok-bg); color: var(--ok); }
+    button, .btn { font: inherit; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); padding: 8px 14px; cursor: pointer; text-decoration: none; display: inline-block; }
+    button:hover, .btn:hover { border-color: var(--muted); }
+    button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.primary:hover { background: var(--accent-dark); }
+    button[disabled] { opacity: .6; cursor: progress; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    label { display: block; font-weight: 600; margin: 14px 0 4px; }
+    label .hint { font-weight: 400; color: var(--muted); }
+    input[type=text], input[type=password], input[type=number], input[type=url], textarea {
+      width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text);
+    }
+    textarea { min-height: 64px; resize: vertical; }
+    .check { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-weight: 400; }
+    .check input { width: auto; }
+    .row { display: flex; gap: 8px; align-items: flex-start; }
+    .row > * { flex: 1; }
+    .row > button { flex: 0 0 auto; margin-top: 0; }
+    .result { margin-top: 8px; font-size: 14px; min-height: 1.2em; }
+    .result.ok { color: var(--ok); }
+    .result.err { color: var(--err); }
+    .listing { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    .listing a { font-weight: 600; text-decoration: none; }
+    .listing a:hover { text-decoration: underline; }
+    .steps { counter-reset: step; }
+    .steps h2::before { counter-increment: step; content: counter(step) ". "; color: var(--accent); }
+    footer { color: var(--muted); font-size: 13px; text-align: center; padding: 16px; }
+    code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="brand" href="/"><span class="logo"></span> Mein Wohn-Ticket Checker</a>
+    <nav>
+      {% if configured %}<a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>{% endif %}
+      <a href="/settings" class="{% if request.url.path == '/settings' %}active{% endif %}">Settings</a>
+    </nav>
+  </div>
+</header>
+<main><div class="wrap">
+{% block content %}{% endblock %}
+</div></main>
+<footer>v{{ version }} · not affiliated with Wohnberatung Wien or the City of Vienna</footer>
+<script>
+  async function api(path, body) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Requested-With': 'fetch'},
+      body: JSON.stringify(body || {}),
+    });
+    let data = {};
+    try { data = await res.json(); } catch (e) { data = {ok: false, error: res.statusText}; }
+    if (data.ok === undefined) data.ok = res.ok;
+    return data;
+  }
+  function setResult(el, ok, text) {
+    el.className = 'result ' + (ok ? 'ok' : 'err');
+    el.textContent = text;
+  }
+  async function busy(button, fn) {
+    const label = button.textContent;
+    button.disabled = true; button.textContent = 'Working…';
+    try { await fn(); } finally { button.disabled = false; button.textContent = label; }
+  }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
