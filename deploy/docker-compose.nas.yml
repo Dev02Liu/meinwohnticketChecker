@@ -1,0 +1,32 @@
+# Mein Wohn-Ticket Checker auf einem NAS oder Server: fertiges Image von GitHub, kein Build nötig.
+# Mein Wohn-Ticket Checker on a NAS or server: prebuilt image from GitHub, nothing to build.
+#
+# 1. Diese Datei als docker-compose.yml in einen Ordner auf dem NAS legen (z. B. /volume1/docker/wohnticket).
+# 2. Daneben eine .env mit mindestens UI_PASSWORD=<ein gutes Passwort> anlegen (die Oberfläche ist im
+#    ganzen Heimnetz erreichbar). Weitere Variablen: siehe .env.example im Repository.
+# 3. docker compose up -d   ->   http://<NAS-IP>:8080
+#
+# 1. Save this file as docker-compose.yml in a folder on the NAS. 2. Create a .env next to it with at
+# least UI_PASSWORD=<a good password> (the UI is reachable from your whole network). 3. docker compose up -d
+services:
+  checker:
+    image: ghcr.io/dev02liu/meinwohnticketchecker:latest
+    container_name: meinwohnticket-checker
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "${HOST_BIND:-0.0.0.0}:${HOST_PORT:-8080}:8080"
+    volumes:
+      - checker-data:/data
+    restart: unless-stopped
+    init: true
+    shm_size: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  checker-data:

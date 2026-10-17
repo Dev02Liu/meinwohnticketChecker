@@ -66,6 +66,22 @@ cd meinwohnticketChecker
 ./start.sh
 ```
 
+### Auf einem NAS oder Server (läuft rund um die Uhr)
+
+Ein NAS (UGREEN, Synology, QNAP, …) oder ein kleiner Server ist der beste Platz, weil er immer an
+ist. Dort muss nichts gebaut werden: GitHub stellt ein fertiges Image bereit
+(`ghcr.io/dev02liu/meinwohnticketchecker:latest`, x86_64).
+
+1. Docker auf dem NAS aktivieren (UGREEN: App „Docker“; Synology: „Container Manager“) und SSH einschalten.
+2. Einen Ordner anlegen, z. B. `/volume1/docker/wohnticket`, und dort
+   [`deploy/docker-compose.nas.yml`](deploy/docker-compose.nas.yml) als `docker-compose.yml` ablegen.
+3. Daneben eine Datei `.env` mit `UI_PASSWORD=<ein gutes Passwort>` anlegen. Auf einem NAS ist die
+   Oberfläche im ganzen Heimnetz erreichbar, deshalb ist das Passwort hier Pflicht.
+4. Im Ordner `docker compose up -d` ausführen und `http://<NAS-IP>:8080` im Browser öffnen
+   (Benutzername beliebig, Passwort aus der `.env`). Dann die vier Schritte unten durchgehen.
+
+Updates: `docker compose pull && docker compose up -d`.
+
 ## Einrichtung (die vier Schritte im Browser)
 
 **http://localhost:8080** öffnen. Die Sprache lässt sich rechts oben mit *DE · EN* umschalten.
